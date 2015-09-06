@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 import versioneer
 
 setup(
-    name='aiocompose',
+    name='knighted',
     version=versioneer.get_version(),
     author='Xavier Barbosa',
     author_email='clint.northwood@gmail.com',
@@ -26,7 +26,7 @@ setup(
         "Topic :: Software Development :: Libraries :: Python Modules"
     ],
     keywords=['dependency injection', 'composing'],
-    url='http://lab.errorist.xyz/abc/aiocompose',
+    url='http://lab.errorist.xyz/abc/knighted',
     license='MIT',
     cmdclass=versioneer.get_cmdclass()
 )

@@ -1,5 +1,5 @@
 import pytest
-from aiocompose import Injector, annotate
+from knighted import Injector, annotate
 
 
 @pytest.mark.asyncio
@@ -31,8 +31,35 @@ def test_instance_factory():
     assert (yield from services.get('foo')) == 'I am foo'
     assert (yield from services.get('bar')) == 'I am bar'
     assert (yield from services.get('all')) == ['I am foo', 'I am bar']
-    assert (yield from services.inject(fun)) == {'foo': 'I am foo',
+    assert (yield from services.apply(fun)) == {'foo': 'I am foo',
                                                  'bar': 'I am bar'}
+
+
+@pytest.mark.asyncio
+def test_partial():
+    class MyInjector(Injector):
+        pass
+
+    services = MyInjector()
+
+    @services.factory('foo')
+    def foo_factory():
+        return 'I am foo'
+
+    @services.factory('bar')
+    def bar_factory():
+        return 'I am bar'
+
+    @annotate('foo', 'bar')
+    def fun(foo, bar):
+        return {'foo': foo,
+                'bar': bar}
+
+    assert len(services.services) == 0
+    part = services.partial(fun)
+    assert len(services.services) == 0
+    assert (yield from part()) == {'foo': 'I am foo', 'bar': 'I am bar'}
+    assert len(services.services) == 2
 
 
 @pytest.mark.asyncio
@@ -64,7 +91,7 @@ def test_class_factory():
     assert (yield from services.get('foo')) == 'I am foo'
     assert (yield from services.get('bar')) == 'I am bar'
     assert (yield from services.get('all')) == ['I am foo', 'I am bar']
-    assert (yield from services.inject(fun)) == {'foo': 'I am foo',
+    assert (yield from services.apply(fun)) == {'foo': 'I am foo',
                                                  'bar': 'I am bar'}
 
 
@@ -86,7 +113,7 @@ def test_annotate_error():
 
 
 @pytest.mark.asyncio
-def test_kw_inject():
+def test_kw_apply():
     class MyInjector(Injector):
         pass
 
@@ -100,7 +127,11 @@ def test_kw_inject():
     def fun(foo, *, bar):
         return '%s, not %s' % (foo, bar)
 
-    assert (yield from services.inject(fun, bar='baz')) == 'I am bar, not baz'
+    def fun2(baz):
+        return 'nor %s' % baz
+
+    assert (yield from services.apply(fun, bar='baz')) == 'I am bar, not baz'
+    assert (yield from services.apply(fun2, 'baz')) == 'nor baz'
 
 
 @pytest.mark.asyncio
@@ -134,3 +165,75 @@ def test_sub_factory():
 
     assert (yield from services.get('foo')) == 'I am foo'
     assert (yield from services.get('foo:bar')) == 'I am bar'
+
+
+@pytest.mark.asyncio
+def test_close():
+    class MyInjector(Injector):
+        pass
+
+    services = MyInjector()
+
+    @services.factory('foo')
+    def foo_factory():
+        return 'I am foo'
+
+    @services.factory('foo:bar')
+    def bar_factory():
+        return 'I am bar'
+
+    assert len(services.services) == 0
+    yield from services.get('foo')
+    yield from services.get('foo:bar')
+    assert len(services.services) == 2
+    yield from services.close()
+    assert len(services.services) == 0
+
+
+@pytest.mark.asyncio
+def test_close_register():
+    class MyInjector(Injector):
+        pass
+
+    services = MyInjector()
+
+
+    class Foo:
+
+        def __init__(self):
+            self.value = 'bar'
+
+        def set_value(self, value):
+            self.value = value
+
+    foo = Foo()
+    def reaction(obj):
+        obj.set_value('baz')
+    services.close.register(foo, reaction=reaction)
+    yield from services.close()
+    assert foo.value == 'baz'
+
+
+@pytest.mark.asyncio
+def test_close_unregister():
+    class MyInjector(Injector):
+        pass
+
+    services = MyInjector()
+
+
+    class Foo:
+
+        def __init__(self):
+            self.value = 'bar'
+
+        def set_value(self, value):
+            self.value = value
+
+    foo = Foo()
+    def reaction(obj):
+        obj.set_value('baz')
+    services.close.register(foo, reaction=reaction)
+    services.close.unregister(foo, reaction=reaction)
+    yield from services.close()
+    assert foo.value == 'bar'
