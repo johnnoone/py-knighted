@@ -57,5 +57,26 @@ close().
 ``Injector.close()`` is called.
 
 
+Factories don't need to be fully qualified. For example::
+
+    @services.factory('prefix')
+    def foo_factory(bar):
+        return 'I am foo and ' + bar
+
+    assert (yield from services.get('prefix:baz')) == 'I am foo and baz'
+    assert (yield from services.get('prefix:qux')) == 'I am foo and qux'
+
+
+Closing callback can be registered::
+
+    class Foo:
+        def close(self):
+            self.closed = True
+    foo = Foo()
+    services.close.register(foo)
+    services.close()
+    assert foo.closed == True
+
+
 .. _asyncio: https://pypi.python.org/pypi/asyncio
 .. _jeni: https://pypi.python.org/pypi/jeni

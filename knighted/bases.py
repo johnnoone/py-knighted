@@ -3,7 +3,7 @@ import logging
 from abc import ABCMeta
 from collections import defaultdict, namedtuple, OrderedDict
 from itertools import chain
-from weakref import WeakKeyDictionary, WeakSet
+from weakref import WeakKeyDictionary
 from functools import wraps
 
 logger = logging.getLogger(__name__)
@@ -57,28 +57,25 @@ class CloseHandler:
         """Register callbacks that should be thrown on close.
         """
         reaction = reaction or close_reaction
-        reactions = self.registry.setdefault(obj, WeakSet())
+        reactions = self.registry.setdefault(obj, set())
         reactions.add(reaction)
+        print('reactions are', obj, reactions)
 
     def unregister(self, obj, reaction=None):
         """Unregister callbacks that should not be thrown on close.
         """
         if reaction:
-            reactions = self.registry.setdefault(obj, WeakSet())
+            reactions = self.registry.setdefault(obj, set())
             reactions.remove(reaction)
             if not reactions:
                 self.registry.pop(obj, None)
         else:
             self.registry.pop(obj, None)
 
-    @asyncio.coroutine
     def __call__(self):
         for obj, reactions in self.registry.items():
             for reaction in reactions:
-                if asyncio.iscoroutinefunction(reaction):
-                    yield from reaction(obj)
-                else:
-                    reaction(obj)
+                reaction(obj)
         self.injector.services.clear()
 
 
