@@ -186,11 +186,10 @@ def test_close():
     yield from services.get('foo')
     yield from services.get('foo:bar')
     assert len(services.services) == 2
-    yield from services.close()
+    services.close()
     assert len(services.services) == 0
 
 
-@pytest.mark.asyncio
 def test_close_register():
     class MyInjector(Injector):
         pass
@@ -210,11 +209,10 @@ def test_close_register():
     def reaction(obj):
         obj.set_value('baz')
     services.close.register(foo, reaction=reaction)
-    yield from services.close()
+    services.close()
     assert foo.value == 'baz'
 
 
-@pytest.mark.asyncio
 def test_close_unregister():
     class MyInjector(Injector):
         pass
@@ -235,5 +233,5 @@ def test_close_unregister():
         obj.set_value('baz')
     services.close.register(foo, reaction=reaction)
     services.close.unregister(foo, reaction=reaction)
-    yield from services.close()
+    services.close()
     assert foo.value == 'bar'
