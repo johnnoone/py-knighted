@@ -11,7 +11,6 @@ setup(
     packages=find_packages(),
     install_requires=[],
     extras_require={
-        ':python_version=="3.3"': ['asyncio'],
     },
     classifiers=[
         "Development Status :: 5 - Production/Stable",
@@ -19,9 +18,7 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.3",
-        "Programming Language :: Python :: 3.4",
-        "Programming Language :: Python :: 3.5",
+        "Programming Language :: Python :: 3.7",
         "Topic :: Software Development :: Libraries",
         "Topic :: Software Development :: Libraries :: Python Modules"
     ],
