@@ -1,10 +1,13 @@
+from __future__ import annotations
+
 import asyncio
 import logging
 from abc import ABCMeta
-from collections import defaultdict, namedtuple, OrderedDict
-from itertools import chain
-from weakref import WeakKeyDictionary
+from collections import OrderedDict, defaultdict, namedtuple
 from functools import wraps
+from itertools import chain
+from typing import Any
+from weakref import WeakKeyDictionary
 
 logger = logging.getLogger(__name__)
 
@@ -93,23 +96,21 @@ class Injector(metaclass=ABCMeta):
         self.reactions = defaultdict(WeakKeyDictionary)
         self.close = CloseHandler(self)
 
-    @asyncio.coroutine
-    def get(self, note):
+    async def get(self, note):
         if note in self.services:
             return self.services[note]
 
         for fact, args in note_loop(note):
             if fact in self.factories:
-                instance = yield from self.factories[fact](*args)
+                instance = await self.factories[fact](*args)
                 logger.info('loaded service %s' % note)
                 self.services[note] = instance
                 return instance
         raise ValueError('%r is not defined' % note)
 
-    @asyncio.coroutine
-    def apply(self, *args, **kwargs):
+    async def apply(self, *args, **kwargs):
         func, *args = args
-        response = yield from self.partial(func)(*args, **kwargs)
+        response = await self.partial(func)(*args, **kwargs)
         return response
 
     def partial(self, func):
@@ -120,16 +121,15 @@ class Injector(metaclass=ABCMeta):
         """
 
         @wraps(func)
-        @asyncio.coroutine
-        def wrapper(*args, **kwargs):
+        async def wrapper(*args, **kwargs):
             if func in ANNOTATIONS:
                 annotated = ANNOTATIONS[func]
                 service_args, service_kwargs = [], {}
                 for note in annotated.pos_notes:
-                    service = yield from self.get(note)
+                    service = await self.get(note)
                     service_args.append(service)
                 for key, note in annotated.kw_notes.items():
-                    service = yield from self.get(note)
+                    service = await self.get(note)
                     service_kwargs[key] = service
                 service_args.extend(args)
                 service_kwargs.update(kwargs)
@@ -139,7 +139,7 @@ class Injector(metaclass=ABCMeta):
         return wrapper
 
 
-ANNOTATIONS = WeakKeyDictionary()
+ANNOTATIONS: WeakKeyDictionary[str, Any] = WeakKeyDictionary()
 
 Annotation = namedtuple('Annotation', 'pos_notes kw_notes')
 
