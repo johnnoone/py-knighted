@@ -1,12 +1,18 @@
+from __future__ import annotations
+
 import asyncio
+import concurrent.futures
 import logging
 from abc import ABCMeta
-from collections import defaultdict, namedtuple, OrderedDict
+from collections import OrderedDict, defaultdict
+from functools import wraps
+from inspect import signature
 from itertools import chain
 from weakref import WeakKeyDictionary
-from functools import wraps
 
-logger = logging.getLogger(__name__)
+from cached_property import cached_property
+
+logger = logging.getLogger("knighted")
 
 
 class Factory:
@@ -16,7 +22,7 @@ class Factory:
 
     def __call__(self, note, func=None):
         def decorate(func):
-            self.target.factories[note] = asyncio.coroutine(func)
+            self.target.factories[note] = func
             return func
         if func:
             return decorate(func)
@@ -59,7 +65,6 @@ class CloseHandler:
         reaction = reaction or close_reaction
         reactions = self.registry.setdefault(obj, set())
         reactions.add(reaction)
-        print('reactions are', obj, reactions)
 
     def unregister(self, obj, reaction=None):
         """Unregister callbacks that should not be thrown on close.
@@ -93,55 +98,75 @@ class Injector(metaclass=ABCMeta):
         self.reactions = defaultdict(WeakKeyDictionary)
         self.close = CloseHandler(self)
 
-    @asyncio.coroutine
-    def get(self, note):
+    @cached_property
+    def executor(self):
+        return concurrent.futures.ThreadPoolExecutor(max_workers=10)
+
+    async def get(self, note):
         if note in self.services:
             return self.services[note]
 
         for fact, args in note_loop(note):
             if fact in self.factories:
-                instance = yield from self.factories[fact](*args)
+                func = self.factories[fact]
+                if asyncio.iscoroutinefunction(func):
+                    instance = await func(*args)
+                else:
+                    loop = asyncio.get_running_loop()
+                    instance = await loop.run_in_executor(self.executor, func, *args)
                 logger.info('loaded service %s' % note)
                 self.services[note] = instance
                 return instance
         raise ValueError('%r is not defined' % note)
 
-    @asyncio.coroutine
-    def apply(self, *args, **kwargs):
+    async def apply(self, *args, **kwargs):
         func, *args = args
-        response = yield from self.partial(func)(*args, **kwargs)
+        response = await self.partial(func)(*args, **kwargs)
         return response
 
     def partial(self, func):
-        """Resolves lately dependancies.
+        """Resolves lately dependencies.
 
         Returns:
             callable: the service partially resolved
         """
 
         @wraps(func)
-        @asyncio.coroutine
-        def wrapper(*args, **kwargs):
+        async def wrapper(*args, **kwargs):
             if func in ANNOTATIONS:
-                annotated = ANNOTATIONS[func]
-                service_args, service_kwargs = [], {}
-                for note in annotated.pos_notes:
-                    service = yield from self.get(note)
-                    service_args.append(service)
-                for key, note in annotated.kw_notes.items():
-                    service = yield from self.get(note)
-                    service_kwargs[key] = service
-                service_args.extend(args)
-                service_kwargs.update(kwargs)
-                return func(*service_args, **service_kwargs)
-            logger.warn('%r is not annoted' % func)
+                annotation = ANNOTATIONS[func]
+                given = annotation.given(*args, **kwargs)
+                to_load = {}
+                for key, note in annotation.marked.items():
+                    if key not in given:
+                        to_load[key] = asyncio.create_task(self.get(note))
+                for key, fut in to_load.items():
+                    to_load[key] = await fut
+                kwargs.update(to_load)
+                result = func(*args, **kwargs)
+                if asyncio.iscoroutine(result):
+                    result = await result
+                return result
+            logger.warning('%r is not annoted', func)
             return func(*args, **kwargs)
         return wrapper
 
 
-ANNOTATIONS = WeakKeyDictionary()
+class Annotation:
+    def __init__(self, pos_notes, kw_notes, func):
+        self.pos_notes = pos_notes
+        self.kw_notes = kw_notes
+        self.bind_partial = signature(func).bind_partial
 
-Annotation = namedtuple('Annotation', 'pos_notes kw_notes')
+    @cached_property
+    def marked(self):
+        return self.bind_partial(*self.pos_notes, **self.kw_notes).arguments
+
+    def given(self, *args, **kwargs):
+        return list(self.bind_partial(*args, **kwargs).arguments)
+
+
+ANNOTATIONS: WeakKeyDictionary[str, Annotation] = WeakKeyDictionary()
 
 
 def close_reaction(obj):
@@ -151,7 +176,7 @@ def close_reaction(obj):
 def annotate(*args, **kwargs):
 
     def decorate(func):
-        ANNOTATIONS[func] = Annotation(args, kwargs)
+        ANNOTATIONS[func] = Annotation(args, kwargs, func)
         return func
 
     for arg in chain(args, kwargs.values()):
