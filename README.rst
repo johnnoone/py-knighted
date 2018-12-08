@@ -58,6 +58,28 @@ The :func:`func` can be a function or an awaitable. These 2 examples works the s
                                                           'bar': 'I am bar'}
 
 
+When applied with some arguments, placeholders just fills the gaps::
+
+
+    @annotate('foo', 'bar')
+    def fun(foo, bar):
+        return {'foo': foo,
+                'bar': bar}
+
+    assert (yield from services.apply(fun, foo="yes")) == {'foo': 'yes',
+                                                           'bar': 'I am bar'}
+
+
+    @annotate('foo', 'bar')
+    async def awaitable_fun(foo, bar):
+        return {'foo': foo,
+                'bar': bar}
+
+    assert (yield from services.apply(awaitable_fun)) == {'foo': 'I am foo',
+                                                          'bar': 'I am bar'}
+
+
+
 Factories also can be either sync or awaitable::
 
     @services.factory('bar:sync')

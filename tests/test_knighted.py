@@ -36,10 +36,52 @@ async def test_instance_factory():
     assert (await services.get('foo')) == 'I am foo'
     assert (await services.get('bar')) == 'I am bar'
     assert (await services.get('all')) == ['I am foo', 'I am bar']
+    # synchroneous
     assert (await services.apply(fun)) == {'foo': 'I am foo',
                                            'bar': 'I am bar'}
+    # asynchroneous
     assert (await services.apply(awaitable_fun)) == {'foo': 'I am foo',
                                                      'bar': 'I am bar'}
+
+
+@pytest.mark.asyncio
+async def test_fill_the_gaps():
+    class MyInjector(Injector):
+        pass
+
+    services = MyInjector()
+
+    @services.factory('foo:1')
+    def foo_factory():
+        return 'I am foo'
+
+    @services.factory('bar:2')
+    async def bar_factory():
+        return 'I am bar'
+
+    @services.factory('all')
+    async def together_factory():
+        foo = await services.get('foo:1')
+        bar = await services.get('bar:2')
+        return [foo, bar]
+
+    @annotate('foo:1', 'bar:2')
+    def fun(foo, bar):
+        return {'foo': foo,
+                'bar': bar}
+
+    assert (await services.get('foo:1')) == 'I am foo'
+    assert (await services.get('bar:2')) == 'I am bar'
+    assert (await services.apply(fun)) == {'foo': 'I am foo',
+                                           'bar': 'I am bar'}
+    assert (await services.apply(fun, "obviously")) == {'foo': 'obviously',
+                                                        'bar': 'I am bar'}
+    assert (await services.apply(fun, "obviously", "not")) == {'foo': 'obviously',
+                                                               'bar': 'not'}
+    assert (await services.apply(fun, foo="sometimes")) == {'foo': 'sometimes',
+                                                            'bar': 'I am bar'}
+    assert (await services.apply(fun, bar="I feel")) == {'foo': 'I am foo',
+                                                         'bar': 'I feel'}
 
 
 @pytest.mark.asyncio

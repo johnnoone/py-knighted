@@ -2,10 +2,12 @@ from __future__ import annotations
 import asyncio
 import logging
 from abc import ABCMeta
-from collections import defaultdict, namedtuple, OrderedDict
+from collections import defaultdict, OrderedDict
 from itertools import chain
 from weakref import WeakKeyDictionary
 from functools import wraps
+from inspect import signature
+from cached_property import cached_property
 
 logger = logging.getLogger("knighted")
 
@@ -124,28 +126,39 @@ class Injector(metaclass=ABCMeta):
         @asyncio.coroutine
         def wrapper(*args, **kwargs):
             if func in ANNOTATIONS:
-                annotated = ANNOTATIONS[func]
-                service_args, service_kwargs = [], {}
-                for note in annotated.pos_notes:
-                    service = yield from self.get(note)
-                    service_args.append(service)
-                for key, note in annotated.kw_notes.items():
-                    service = yield from self.get(note)
-                    service_kwargs[key] = service
-                service_args.extend(args)
-                service_kwargs.update(kwargs)
-                result = func(*service_args, **service_kwargs)
+                annotation = ANNOTATIONS[func]
+                given = annotation.given(*args, **kwargs)
+                to_load = {}
+                for key, note in annotation.marked.items():
+                    if key not in given:
+                        to_load[key] = asyncio.create_task(self.get(note))
+                for key, fut in to_load.items():
+                    to_load[key] = yield from fut
+                kwargs.update(to_load)
+                result = func(*args, **kwargs)
                 if asyncio.iscoroutine(result):
                     result = yield from result
                 return result
-            logger.warn('%r is not annoted' % func)
+            logger.warning('%r is not annoted', func)
             return func(*args, **kwargs)
         return wrapper
 
 
-ANNOTATIONS: WeakKeyDictionary[str, "Annotation"] = WeakKeyDictionary()
+class Annotation:
+    def __init__(self, pos_notes, kw_notes, func):
+        self.pos_notes = pos_notes
+        self.kw_notes = kw_notes
+        self.bind_partial = signature(func).bind_partial
 
-Annotation = namedtuple('Annotation', 'pos_notes kw_notes')
+    @cached_property
+    def marked(self):
+        return self.bind_partial(*self.pos_notes, **self.kw_notes).arguments
+
+    def given(self, *args, **kwargs):
+        return list(self.bind_partial(*args, **kwargs).arguments)
+
+
+ANNOTATIONS: WeakKeyDictionary[str, Annotation] = WeakKeyDictionary()
 
 
 def close_reaction(obj):
@@ -155,7 +168,7 @@ def close_reaction(obj):
 def annotate(*args, **kwargs):
 
     def decorate(func):
-        ANNOTATIONS[func] = Annotation(args, kwargs)
+        ANNOTATIONS[func] = Annotation(args, kwargs, func)
         return func
 
     for arg in chain(args, kwargs.values()):

@@ -9,7 +9,9 @@ setup(
     author_email='clint.northwood@gmail.com',
     description='inject dependencies',
     packages=find_packages(),
-    install_requires=[],
+    install_requires=[
+        "cached_property"
+    ],
     extras_require={
         ':python_version=="3.3"': ['asyncio'],
     },
