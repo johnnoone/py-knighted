@@ -4,17 +4,11 @@ before_script:
   - python -m pip install -e .
   - python -m pip install -r requirements-test.txt
 
-python3.3 tests:
+python3 tests:
   script:
     - py.test --cov knighted --cov-report term-missing tests/
   tags:
-    - python3.3
-
-python3.4 tests:
-  script:
-    - py.test --cov knighted --cov-report term-missing tests/
-  tags:
-    - python3.4
+    - python3
 
 publish to pypi:
   type: deploy
@@ -23,7 +17,7 @@ publish to pypi:
     - python setup.py sdist bdist_wheel
     - twine upload -u $PYPI_USER -p $PYPI_PASSWORD dist/*
   tags:
-    - python3.4
+    - python3
   only:
     - /^v[\d\.]+.*$/
   allow_failure: true

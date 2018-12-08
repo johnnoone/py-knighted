@@ -1,3 +1,4 @@
+from __future__ import annotations
 import asyncio
 import logging
 from abc import ABCMeta
@@ -6,7 +7,7 @@ from itertools import chain
 from weakref import WeakKeyDictionary
 from functools import wraps
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("knighted")
 
 
 class Factory:
@@ -113,7 +114,7 @@ class Injector(metaclass=ABCMeta):
         return response
 
     def partial(self, func):
-        """Resolves lately dependancies.
+        """Resolves lately dependencies.
 
         Returns:
             callable: the service partially resolved
@@ -139,7 +140,7 @@ class Injector(metaclass=ABCMeta):
         return wrapper
 
 
-ANNOTATIONS = WeakKeyDictionary()
+ANNOTATIONS: WeakKeyDictionary[str, "Annotation"] = WeakKeyDictionary()
 
 Annotation = namedtuple('Annotation', 'pos_notes kw_notes')
 
