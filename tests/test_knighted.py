@@ -1,5 +1,23 @@
 import pytest
 from knighted import Injector, annotate
+import asyncio
+from contextlib import contextmanager
+from time import time_ns, sleep
+
+
+class Timer:
+    started_at = None
+    stoped_at = None
+    duration = None
+
+
+@contextmanager
+def timed():
+    timer = Timer()
+    timer.started_at = time_ns()
+    yield timer
+    timer.stoped_at = time_ns()
+    timer.duration = timer.stoped_at - timer.started_at
 
 
 @pytest.mark.asyncio
@@ -82,6 +100,40 @@ async def test_fill_the_gaps():
                                                             'bar': 'I am bar'}
     assert (await services.apply(fun, bar="I feel")) == {'foo': 'I am foo',
                                                          'bar': 'I feel'}
+
+
+@pytest.mark.slow
+@pytest.mark.asyncio
+async def test_load_in_parallel():
+    class MyInjector(Injector):
+        pass
+
+    services = MyInjector()
+
+    @services.factory('foo')
+    def foo_factory():
+        sleep(1)
+        return 'I am foo'
+
+    @services.factory('bar')
+    async def bar_factory():
+        await asyncio.sleep(1)
+        return 'I am bar'
+
+    @services.factory('baz')
+    async def baz_factory():
+        await asyncio.sleep(1)
+        return 'I am baz'
+
+    @annotate('foo', 'bar', 'baz')
+    def fun(foo, bar, baz):
+        return {'foo': foo,
+                'bar': bar,
+                'baz': baz}
+
+    with timed() as timer:
+        await services.apply(fun)
+    assert timer.duration == pytest.approx(1000000000, rel=1e-2)
 
 
 @pytest.mark.asyncio

@@ -1,12 +1,15 @@
 from __future__ import annotations
+
 import asyncio
+import concurrent.futures
 import logging
 from abc import ABCMeta
-from collections import defaultdict, OrderedDict
-from itertools import chain
-from weakref import WeakKeyDictionary
+from collections import OrderedDict, defaultdict
 from functools import wraps
 from inspect import signature
+from itertools import chain
+from weakref import WeakKeyDictionary
+
 from cached_property import cached_property
 
 logger = logging.getLogger("knighted")
@@ -19,7 +22,7 @@ class Factory:
 
     def __call__(self, note, func=None):
         def decorate(func):
-            self.target.factories[note] = asyncio.coroutine(func)
+            self.target.factories[note] = func
             return func
         if func:
             return decorate(func)
@@ -96,6 +99,10 @@ class Injector(metaclass=ABCMeta):
         self.reactions = defaultdict(WeakKeyDictionary)
         self.close = CloseHandler(self)
 
+    @cached_property
+    def executor(self):
+        return concurrent.futures.ThreadPoolExecutor(max_workers=10)
+
     @asyncio.coroutine
     def get(self, note):
         if note in self.services:
@@ -103,7 +110,13 @@ class Injector(metaclass=ABCMeta):
 
         for fact, args in note_loop(note):
             if fact in self.factories:
-                instance = yield from self.factories[fact](*args)
+                func = self.factories[fact]
+                print("!", fact, func, asyncio.iscoroutinefunction(func))
+                if asyncio.iscoroutinefunction(func):
+                    instance = yield from func(*args)
+                else:
+                    loop = asyncio.get_running_loop()
+                    instance = yield from loop.run_in_executor(self.executor, func, *args)
                 logger.info('loaded service %s' % note)
                 self.services[note] = instance
                 return instance
