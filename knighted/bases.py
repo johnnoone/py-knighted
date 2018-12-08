@@ -65,7 +65,6 @@ class CloseHandler:
         reaction = reaction or close_reaction
         reactions = self.registry.setdefault(obj, set())
         reactions.add(reaction)
-        print('reactions are', obj, reactions)
 
     def unregister(self, obj, reaction=None):
         """Unregister callbacks that should not be thrown on close.
@@ -103,29 +102,26 @@ class Injector(metaclass=ABCMeta):
     def executor(self):
         return concurrent.futures.ThreadPoolExecutor(max_workers=10)
 
-    @asyncio.coroutine
-    def get(self, note):
+    async def get(self, note):
         if note in self.services:
             return self.services[note]
 
         for fact, args in note_loop(note):
             if fact in self.factories:
                 func = self.factories[fact]
-                print("!", fact, func, asyncio.iscoroutinefunction(func))
                 if asyncio.iscoroutinefunction(func):
-                    instance = yield from func(*args)
+                    instance = await func(*args)
                 else:
                     loop = asyncio.get_running_loop()
-                    instance = yield from loop.run_in_executor(self.executor, func, *args)
+                    instance = await loop.run_in_executor(self.executor, func, *args)
                 logger.info('loaded service %s' % note)
                 self.services[note] = instance
                 return instance
         raise ValueError('%r is not defined' % note)
 
-    @asyncio.coroutine
-    def apply(self, *args, **kwargs):
+    async def apply(self, *args, **kwargs):
         func, *args = args
-        response = yield from self.partial(func)(*args, **kwargs)
+        response = await self.partial(func)(*args, **kwargs)
         return response
 
     def partial(self, func):
@@ -136,8 +132,7 @@ class Injector(metaclass=ABCMeta):
         """
 
         @wraps(func)
-        @asyncio.coroutine
-        def wrapper(*args, **kwargs):
+        async def wrapper(*args, **kwargs):
             if func in ANNOTATIONS:
                 annotation = ANNOTATIONS[func]
                 given = annotation.given(*args, **kwargs)
@@ -146,11 +141,11 @@ class Injector(metaclass=ABCMeta):
                     if key not in given:
                         to_load[key] = asyncio.create_task(self.get(note))
                 for key, fut in to_load.items():
-                    to_load[key] = yield from fut
+                    to_load[key] = await fut
                 kwargs.update(to_load)
                 result = func(*args, **kwargs)
                 if asyncio.iscoroutine(result):
-                    result = yield from result
+                    result = await result
                 return result
             logger.warning('%r is not annoted', func)
             return func(*args, **kwargs)
