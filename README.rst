@@ -36,6 +36,40 @@ For example::
     assert (yield from services.apply(fun)) == {'foo': 'I am foo',
                                                 'bar': 'I am bar'}
 
+
+The :func:`func` can be a function or an awaitable. These 2 examples works the same::
+
+
+    @annotate('foo', 'bar')
+    def sync_fun(foo, bar):
+        return {'foo': foo,
+                'bar': bar}
+
+    assert (yield from services.apply(sync_fun)) == {'foo': 'I am foo',
+                                                     'bar': 'I am bar'}
+
+
+    @annotate('foo', 'bar')
+    async def awaitable_fun(foo, bar):
+        return {'foo': foo,
+                'bar': bar}
+
+    assert (yield from services.apply(awaitable_fun)) == {'foo': 'I am foo',
+                                                          'bar': 'I am bar'}
+
+
+Factories also can be either sync or awaitable::
+
+    @services.factory('bar:sync')
+    def bar_factory():
+        return 'I am bar'
+
+    @services.factory('bar:awaitable')
+    async def bar_factory():
+        return 'I am bar'
+
+
+
 Implementation
 --------------
 

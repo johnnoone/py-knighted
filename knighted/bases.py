@@ -134,7 +134,10 @@ class Injector(metaclass=ABCMeta):
                     service_kwargs[key] = service
                 service_args.extend(args)
                 service_kwargs.update(kwargs)
-                return func(*service_args, **service_kwargs)
+                result = func(*service_args, **service_kwargs)
+                if asyncio.iscoroutine(result):
+                    result = yield from result
+                return result
             logger.warn('%r is not annoted' % func)
             return func(*args, **kwargs)
         return wrapper
