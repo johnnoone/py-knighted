@@ -120,6 +120,15 @@ Singleton mode can be disabled per service::
     assert result1 != result2
 
 
+Current services are automatically exposed inside functions::
+
+    def func():
+        return current_services()
+
+    assert func() is None
+    assert (await services.apply(func)) is services
+
+
 
 Implementation
 --------------

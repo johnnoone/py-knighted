@@ -1,5 +1,5 @@
 import pytest
-from knighted import Injector, annotate
+from knighted import Injector, annotate, current_services
 import asyncio
 from contextlib import contextmanager
 from time import time_ns, sleep
@@ -320,3 +320,11 @@ async def test_not_singleton(services):
     sleep(0.1)
     result2 = await services.get("foo")
     assert result1 != result2
+
+
+async def test_service_context(services):
+    def func():
+        return current_services()
+
+    assert func() is None
+    assert (await services.apply(func)) is services

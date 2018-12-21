@@ -5,14 +5,26 @@ import concurrent.futures
 import logging
 from abc import ABCMeta
 from collections import OrderedDict, defaultdict
+from contextvars import ContextVar
 from functools import wraps
 from inspect import signature
 from itertools import chain
+from typing import Optional
 from weakref import WeakKeyDictionary
 
 from cached_property import cached_property
 
 logger = logging.getLogger("knighted")
+
+MaybeInjector = Optional["Injector"]
+
+current_services_var: ContextVar[MaybeInjector] = ContextVar(
+    "current_services", default=None
+)
+
+
+def current_services() -> MaybeInjector:
+    return current_services_var.get()
 
 
 class Factory:
@@ -151,7 +163,11 @@ class Injector(metaclass=ABCMeta):
                     result = await result
                 return result
             logger.warning("%r is not annoted", func)
-            return func(*args, **kwargs)
+            try:
+                token = current_services_var.set(self)
+                return func(*args, **kwargs)
+            finally:
+                current_services_var.reset(token)
 
         return wrapper
 
