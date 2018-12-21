@@ -16,14 +16,14 @@ logger = logging.getLogger("knighted")
 
 
 class Factory:
-
     def __init__(self, target):
         self.target = target
 
-    def __call__(self, note, func=None):
+    def __call__(self, note, func=None, *, singleton=True):
         def decorate(func):
-            self.target.factories[note] = func
+            self.target.factories[note] = func, singleton
             return func
+
         if func:
             return decorate(func)
         return decorate
@@ -39,7 +39,6 @@ class FactoryMethod:
 
 
 class DataProxy:
-
     def __init__(self, name, type):
         self.name = name
         self.type = type
@@ -89,8 +88,8 @@ class Injector(metaclass=ABCMeta):
     """
 
     factory = FactoryMethod()
-    services = DataProxy('_services', OrderedDict)
-    factories = DataProxy('_factories', OrderedDict)
+    services = DataProxy("_services", OrderedDict)
+    factories = DataProxy("_factories", OrderedDict)
 
     def __init__(self):
         self.services = self.__class__.services.copy()
@@ -108,16 +107,20 @@ class Injector(metaclass=ABCMeta):
 
         for fact, args in note_loop(note):
             if fact in self.factories:
-                func = self.factories[fact]
+                func, singleton = self.factories[fact]
                 if asyncio.iscoroutinefunction(func):
                     instance = await func(*args)
                 else:
                     loop = asyncio.get_running_loop()
                     instance = await loop.run_in_executor(self.executor, func, *args)
-                logger.info('loaded service %s' % note)
-                self.services[note] = instance
+                logger.info("loaded service %s" % note)
+                if singleton:
+                    self.services[note] = instance
                 return instance
-        raise ValueError('%r is not defined' % note)
+        raise ValueError("%r is not defined" % note)
+
+    def refresh(self, note):
+        return self.services.pop(note, None)
 
     async def apply(self, *args, **kwargs):
         func, *args = args
@@ -147,8 +150,9 @@ class Injector(metaclass=ABCMeta):
                 if asyncio.iscoroutine(result):
                     result = await result
                 return result
-            logger.warning('%r is not annoted', func)
+            logger.warning("%r is not annoted", func)
             return func(*args, **kwargs)
+
         return wrapper
 
 
@@ -174,26 +178,25 @@ def close_reaction(obj):
 
 
 def annotate(*args, **kwargs):
-
     def decorate(func):
         ANNOTATIONS[func] = Annotation(args, kwargs, func)
         return func
 
     for arg in chain(args, kwargs.values()):
         if not isinstance(arg, str):
-            raise ValueError('Notes must be strings')
+            raise ValueError("Notes must be strings")
 
     return decorate
 
 
 def note_loop(note):
-    args = note.split(':')
+    args = note.split(":")
     results = []
     fact, *args = args
     results.append((fact, args))
     while args:
         suffix, *args = args
-        fact = '%s:%s' % (fact, suffix)
+        fact = "%s:%s" % (fact, suffix)
         results.append((fact, args))
     for fact, args in sorted(results, reverse=True):
         yield fact, args
