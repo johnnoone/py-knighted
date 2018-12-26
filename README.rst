@@ -79,7 +79,6 @@ When applied with some arguments, placeholders just fills the gaps::
                                                           'bar': 'I am bar'}
 
 
-
 Factories also can be either sync or awaitable::
 
     @services.factory('bar:sync')
@@ -89,6 +88,45 @@ Factories also can be either sync or awaitable::
     @services.factory('bar:awaitable')
     async def bar_factory():
         return 'I am bar'
+
+
+Services are by default singleton, but they can also be instantiated at every call::
+
+    @services.factory('bar', singleton=True)
+    def bar_factory():
+        return time()
+
+    result1 = await services.get('bar')
+    sleep(.1)
+    result2 = await services.get('bar')
+    assert result1 == result2
+
+    # cache can be resetted
+
+    services.refresh("bar")
+    result3 = await services.get('bar')
+    assert result3 != result2
+
+
+Singleton mode can be disabled per service::
+
+    @services.factory('baz', singleton=False)
+    def baz_factory():
+        return time()
+
+    result1 = await services.get('baz')
+    sleep(.1)
+    result2 = await services.get('baz')
+    assert result1 != result2
+
+
+Current services are automatically exposed inside functions::
+
+    def func():
+        return current_injector()
+
+    assert func() is None
+    assert (await services.apply(func)) is services
 
 
 
