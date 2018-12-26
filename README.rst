@@ -37,7 +37,7 @@ For example::
                                                 'bar': 'I am bar'}
 
 
-The :func:`func` can be a function or an awaitable. These 2 examples works the same::
+The `func()` can be a function or an awaitable. These 2 examples works the same::
 
 
     @annotate('foo', 'bar')
