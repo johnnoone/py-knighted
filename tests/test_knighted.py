@@ -1,5 +1,5 @@
 import pytest
-from knighted import Injector, annotate, current_services
+from knighted import Injector, annotate, current_injector
 import asyncio
 from contextlib import contextmanager
 from time import time_ns, sleep
@@ -30,6 +30,8 @@ def timed():
 
 @pytest.mark.asyncio
 async def test_instance_factory(services):
+    print("caca")
+
     @services.factory("foo")
     def foo_factory():
         return "I am foo"
@@ -130,27 +132,6 @@ async def test_load_in_parallel(services):
     with timed() as timer:
         await services.apply(fun)
     assert timer.duration == pytest.approx(1000000000, rel=1e-2)
-
-
-@pytest.mark.asyncio
-async def test_partial(services):
-    @services.factory("foo")
-    def foo_factory():
-        return "I am foo"
-
-    @services.factory("bar")
-    def bar_factory():
-        return "I am bar"
-
-    @annotate("foo", "bar")
-    def fun(foo, bar):
-        return {"foo": foo, "bar": bar}
-
-    assert len(services.services) == 0
-    part = services.partial(fun)
-    assert len(services.services) == 0
-    assert (await part()) == {"foo": "I am foo", "bar": "I am bar"}
-    assert len(services.services) == 2
 
 
 @pytest.mark.asyncio
@@ -322,9 +303,10 @@ async def test_not_singleton(services):
     assert result1 != result2
 
 
+@pytest.mark.asyncio
 async def test_service_context(services):
     def func():
-        return current_services()
+        return current_injector()
 
     assert func() is None
     assert (await services.apply(func)) is services

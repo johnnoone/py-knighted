@@ -123,7 +123,7 @@ Singleton mode can be disabled per service::
 Current services are automatically exposed inside functions::
 
     def func():
-        return current_services()
+        return current_injector()
 
     assert func() is None
     assert (await services.apply(func)) is services

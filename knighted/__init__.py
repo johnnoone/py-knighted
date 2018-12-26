@@ -1,11 +1,8 @@
-from .bases import Injector, annotate, current_services
+from .bases import Injector, annotate, attr, current_injector
 from ._version import get_versions
 
-__all__ = ["Injector", "annotate"]
+
 __version__ = get_versions()["version"]
 del get_versions
 
-from ._version import get_versions
-
-__version__ = get_versions()["version"]
-del get_versions
+__all__ = ["__version__", "Injector", "annotate", "attr", "current_injector"]
