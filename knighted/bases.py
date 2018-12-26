@@ -7,6 +7,7 @@ from abc import ABCMeta
 from collections import ChainMap
 from contextlib import contextmanager
 from contextvars import ContextVar
+from functools import wraps
 from inspect import signature, unwrap
 from itertools import chain
 from types import MappingProxyType
@@ -168,8 +169,8 @@ class Injector(metaclass=ABCMeta):
     def apply(self, *args, **kwargs) -> asyncio.Future:
         with self.auto():
             func, *args = args  # type: ignore
-            func = unwrap(func)
-            anno = ANNOTATIONS.get(func)
+            orig = unwrap(func)
+            anno = ANNOTATIONS.get(orig)
             if anno:
                 return self.do_apply(func, anno, args, kwargs)
             fut: asyncio.Future = asyncio.Future()
@@ -195,6 +196,18 @@ class Injector(metaclass=ABCMeta):
             return result
 
         return asyncio.create_task(run(args, kwargs))
+
+    def partial(self, func):
+        orig = unwrap(func)
+        anno = ANNOTATIONS.get(orig)
+        if anno:
+
+            @wraps(func)
+            def parted(*args, **kwargs):
+                return self.do_apply(func, anno, args, kwargs)
+
+            return parted
+        return func
 
     @contextmanager
     def auto(self):

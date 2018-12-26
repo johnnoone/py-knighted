@@ -172,5 +172,17 @@ Closing callback can be registered::
     assert foo.closed == True
 
 
+Partial::
+
+    @annotate('foo', 'bar')
+    def fun(foo, bar):
+        return {'foo': foo,
+                'bar': bar}
+
+    partial = services.partial(fun)
+    assert (yield from partial()) == {'foo': 'I am foo',
+                                      'bar': 'I am bar'}
+
+
 .. _asyncio: https://pypi.python.org/pypi/asyncio
 .. _jeni: https://pypi.python.org/pypi/jeni

@@ -167,3 +167,26 @@ async def test_descriptor_2_not_decorated(services):
     toto = Toto()
     with pytest.raises(LookupError):
         toto.cache
+
+
+@pytest.mark.asyncio
+async def test_partial_sync_async(services):
+    @services.factory("foo")
+    def foo_factory():
+        return "I am foo"
+
+    @annotate("foo")
+    async def fun(foo):
+        return {"foo": foo}
+
+    partial = services.partial(fun)
+    assert await partial() == {"foo": "I am foo"}
+
+
+@pytest.mark.asyncio
+async def test_partial_outsider(services):
+    async def fun():
+        return {"foo": "bar"}
+
+    partial = services.partial(fun)
+    assert await partial() == {"foo": "bar"}
