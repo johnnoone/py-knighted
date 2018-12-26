@@ -166,6 +166,15 @@ class Injector(metaclass=ABCMeta):
             task.add_done_callback(lambda x: future.set_result(x.result()))
         return future
 
+    def set(self, name: str, value):
+        self.services[name] = value
+
+    def __getitem__(self, name: str):
+        return self.get(name)
+
+    def __setitem__(self, name: str, value):
+        self.set(name, value)
+
     def apply(self, *args, **kwargs) -> asyncio.Future:
         with self.auto():
             func, *args = args  # type: ignore

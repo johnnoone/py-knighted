@@ -190,3 +190,14 @@ async def test_partial_outsider(services):
 
     partial = services.partial(fun)
     assert await partial() == {"foo": "bar"}
+
+
+@pytest.mark.asyncio
+async def test_mapping_interface(services):
+    services["foo"] = "yes"
+    services.set("bar", "no")
+    assert await services.get("foo") == "yes"
+    assert await services.get("bar") == "no"
+
+    assert await services["foo"] == "yes"
+    assert await services["bar"] == "no"

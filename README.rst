@@ -172,7 +172,7 @@ Closing callback can be registered::
     assert foo.closed == True
 
 
-Partial::
+Annotated functions can be rendered partially::
 
     @annotate('foo', 'bar')
     def fun(foo, bar):
@@ -183,6 +183,11 @@ Partial::
     assert (yield from partial()) == {'foo': 'I am foo',
                                       'bar': 'I am bar'}
 
+
+Injector has a mapping interface, which allows to register arbitrary values::
+
+    services["foo"] = "yes"
+    assert await services["foo"] == "yes"
 
 .. _asyncio: https://pypi.python.org/pypi/asyncio
 .. _jeni: https://pypi.python.org/pypi/jeni
