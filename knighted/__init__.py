@@ -1,4 +1,11 @@
-from .bases import Injector, annotate, attr, current_injector
+from .bases import (
+    Injector,
+    annotate,
+    attr,
+    current_injector,
+    AnnotationError,
+    attr_lazy,
+)
 from ._version import get_versions
 
 

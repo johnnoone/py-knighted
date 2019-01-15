@@ -1,6 +1,6 @@
 import pytest
 
-from knighted import Injector, annotate, current_injector, attr
+from knighted import Injector, annotate, current_injector
 
 
 @pytest.fixture
@@ -110,63 +110,6 @@ async def test_noauto_partial_async_async(services):
 
     with pytest.raises(TypeError):
         await fun()
-
-
-@pytest.mark.asyncio
-async def test_descriptor_1_decorated(services):
-    @services.factory("foo")
-    async def foo_factory():
-        return "I am foo"
-
-    class Toto:
-        cache = attr("foo")
-
-    toto = Toto
-    with services.auto(), pytest.raises(Exception):
-        await toto.cache
-
-
-@pytest.mark.asyncio
-async def test_descriptor_2_decorated(services):
-    @services.factory("foo")
-    async def foo_factory():
-        return "I am foo"
-
-    class Toto:
-        cache = attr("foo")
-
-    toto = Toto()
-    with services.auto():
-        cache = await toto.cache
-    assert cache == "I am foo"
-
-
-@pytest.mark.asyncio
-async def test_descriptor_1_not_decorated(services):
-    @services.factory("foo")
-    async def foo_factory():
-        return "I am foo"
-
-    class Toto:
-        cache = attr("foo")
-
-    toto = Toto
-    with pytest.raises(Exception):
-        toto.cache  # Must fails
-
-
-@pytest.mark.asyncio
-async def test_descriptor_2_not_decorated(services):
-    @services.factory("foo")
-    async def foo_factory():
-        return "I am foo"
-
-    class Toto:
-        cache = attr("foo")
-
-    toto = Toto()
-    with pytest.raises(LookupError):
-        toto.cache
 
 
 @pytest.mark.asyncio

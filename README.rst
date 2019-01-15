@@ -189,5 +189,28 @@ Injector has a mapping interface, which allows to register arbitrary values::
     services["foo"] = "yes"
     assert await services["foo"] == "yes"
 
+
+Injection works for class too. Injector is already dataclass ready.
+These 3 examples are equivalent and performs the same::
+
+    from dataclasses import dataclass, field
+    from knighted import attr, annotate, KNIGHTED_NAMESPACE
+
+    @annotate
+    class Foo:
+        my_attr = attr("foo")
+
+    @dataclass
+    class Bar:
+        my_attr = attr("foo")
+
+    @dataclass
+    class Baz:
+        my_attr: Any = field(namespace={KNIGHTED_NAMESPACE:"foo"})
+
+the my_attr will be resolved like the function way.
+
+
+
 .. _asyncio: https://pypi.python.org/pypi/asyncio
 .. _jeni: https://pypi.python.org/pypi/jeni

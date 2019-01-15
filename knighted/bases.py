@@ -11,8 +11,9 @@ from functools import wraps
 from inspect import signature, unwrap
 from itertools import chain
 from types import MappingProxyType
-from typing import Callable, Optional, cast
+from typing import Callable, Optional, cast, Any
 from weakref import WeakKeyDictionary
+from dataclasses import Field, MISSING, dataclass, is_dataclass, fields
 
 from cached_property import cached_property
 
@@ -20,7 +21,8 @@ logger = logging.getLogger("knighted")
 
 MaybeInjector = Optional["Injector"]
 ANNOTATIONS: WeakKeyDictionary[Callable, "Annotation"] = WeakKeyDictionary()
-
+TAINTED: WeakKeyDictionary[Any, "Injector"] = WeakKeyDictionary()
+Missing = object()
 current_injector_var: ContextVar[MaybeInjector] = ContextVar("current_injector")
 
 
@@ -29,17 +31,32 @@ def current_injector() -> MaybeInjector:
     return current_injector_var.get(None)
 
 
+class AnnotationError(Exception):
+    ...
+
+
 def annotate(*pos_notes, **kw_notes):
     def wrapper(func):
         func = unwrap(func)
+        if isinstance(func, type) and pos_notes:
+            raise AnnotationError("Did you added services to class?")
         ANNOTATIONS[func] = Annotation(func, pos_notes, kw_notes)
         return func
 
+    if pos_notes and len(pos_notes) == 1 and isinstance(pos_notes[0], type):
+        cls = pos_notes[0]
+        if not is_dataclass(cls):
+            logger.warning("annotating a class converts it to a dataclass")
+            return dataclass(cls)
+        return cls
     for arg in chain(pos_notes, kw_notes.values()):
         if not isinstance(arg, str):
             raise ValueError("Notes must be strings")
 
     return wrapper
+
+
+KNIGHTED_NAMESPACE = "knighted"
 
 
 class Annotation:
@@ -179,11 +196,23 @@ class Injector(metaclass=ABCMeta):
         with self.auto():
             func, *args = args  # type: ignore
             orig = unwrap(func)
-            anno = ANNOTATIONS.get(orig)
-            if anno:
+            anno = ANNOTATIONS.get(orig, Missing)
+            if anno is Missing and isinstance(orig, type) and is_dataclass(orig):
+                # late resolution of annotation
+                kws = {
+                    f.name: (f.metadata or {})[KNIGHTED_NAMESPACE]
+                    for f in fields(orig)
+                    if KNIGHTED_NAMESPACE in (f.metadata or {})
+                }
+                anno = ANNOTATIONS[orig] = Annotation(orig, [], kw_notes=kws)
+
+            if isinstance(anno, Annotation):
                 return self.do_apply(func, anno, args, kwargs)
+            result = func(*args, **kwargs)
+            if isinstance(func, type):
+                TAINTED[result] = self
             fut: asyncio.Future = asyncio.Future()
-            fut.set_result(func(*args, **kwargs))
+            fut.set_result(result)
             return fut
 
     def do_apply(self, func, anno, args, kwargs):
@@ -227,14 +256,42 @@ class Injector(metaclass=ABCMeta):
             current_injector_var.reset(token)
 
 
-class attr:
-    def __init__(self, name):
-        self.service_name = name
+def attr(service, *, init=True, repr=True, hash=None, compare=True, metadata=None):
+    metadata = (metadata or {}).copy()
+    metadata[KNIGHTED_NAMESPACE] = service
+    return Field(
+        default=MISSING,
+        default_factory=MISSING,
+        init=True,
+        repr=True,
+        hash=None,
+        compare=True,
+        metadata=metadata,
+    )
+
+
+def attr_lazy(service):
+    return Attr(service)
+
+
+class Attr:
+    def __init__(self, service):
+        self.service = service
 
     def __get__(self, obj, objtype):
         if obj is None:
-            raise AttributeError("attr applies to instances only")
-        return current_injector_var.get().get(self.service_name)
+            return self
+        fut = obj.__dict__[self.field_name] = asyncio.Future()
+        task = asyncio.create_task(self.load(obj))
+        task.add_done_callback(lambda x: fut.set_result(x.result()))
+        return fut
+
+    def __set_name__(self, owner, name):
+        self.field_name = name
+
+    async def load(self, obj):
+        fut = (TAINTED.get(obj) or current_injector_var.get()).get(self.service)
+        return await fut
 
 
 def note_loop(note):
